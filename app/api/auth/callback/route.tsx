@@ -17,7 +17,6 @@ export async function GET(req: Request) {
 
   const { tokens } = await oauth2Client.getToken(code);
 
-  // Codificamos tokens en base64
   const encoded = Buffer.from(JSON.stringify(tokens)).toString("base64");
 
   const redirect = new URL("/process-login", req.url);
