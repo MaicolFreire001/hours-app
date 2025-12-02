@@ -65,7 +65,7 @@ export async function POST(req: Request) {
           day.date,
           int.in,
           int.out,
-          `=IF(AND(B${rowIndex}<>\"\", C${rowIndex}<>\"\"), (C${rowIndex}-B${rowIndex})*24, "")`,
+          `=IF(AND(B${rowIndex}<>\"\", C${rowIndex}<>\"\"), (C${rowIndex}-B${rowIndex})}, "")`,
         ]);
         rowIndex++;
       });
