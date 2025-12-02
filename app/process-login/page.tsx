@@ -1,22 +1,34 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function ProcessLoginPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
 
   useEffect(() => {
-    const tokenData = searchParams.get("token");
 
-    if (tokenData) {
-      localStorage.setItem("googleTokens", tokenData);
-      router.replace("/dashboard");
-    } else {
-      router.replace("/");
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const tokens = params.get("tokens");
+
+    if (tokens) {
+      try {
+        const decoded = JSON.parse(atob(tokens));
+        localStorage.setItem("googleTokens", JSON.stringify(decoded));
+        
+      } catch (err) {
+        console.error("Error decoding tokens:", err);
+      }
     }
-  }, []);
 
-  return <p>Procesando login...</p>;
+    router.replace("/");
+  }, [router]);
+
+  return (
+    <div className="w-full h-screen flex items-center justify-center">
+      Procesando inicio de sesión...
+    </div>
+  );
 }

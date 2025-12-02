@@ -9,16 +9,18 @@ export async function GET() {
   );
 
   const scopes = [
+    "openid",
+    "email",
+    "profile",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.file",
-    "profile",
-    "email",
   ];
 
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: scopes,
     prompt: "consent",
+    include_granted_scopes: true,
   });
 
   return NextResponse.redirect(url);
