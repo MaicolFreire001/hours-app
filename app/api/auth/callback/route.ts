@@ -15,7 +15,7 @@ export async function GET(req: Request) {
 
   const { tokens } = await oauth2Client.getToken(code);
 
-  const redirect = new URL("/", req.url);
+  const redirect = new URL("/process-login", req.url);
   redirect.searchParams.set("token", JSON.stringify(tokens));
 
   return NextResponse.redirect(redirect.toString());
