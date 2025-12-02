@@ -65,22 +65,30 @@ export default function DashboardPage() {
     setSheetUrl(null);
 
     try {
-      const res = await fetch("/api/create-sheet", {
+        const res = await fetch("/api/create-sheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ month, days, tokens }),
-      });
+        });
 
-      const data = await res.json();
-      if (data.url) setSheetUrl(data.url);
-      else alert("Error al generar la planilla");
+        const data = await res.json();
+
+        if (data.url) {
+        setSheetUrl(data.url);
+        alert("Planilla creada correctamente!");
+        } else if (data.error) {
+        alert("Error: " + data.error);
+        } else {
+        alert("Error al generar la planilla");
+        }
     } catch (err) {
-      console.error(err);
-      alert("Error de red");
+        console.error(err);
+        alert("Error de red");
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
+
 
   if (!isLoggedIn) return <p className="p-4">Debes iniciar sesión para usar esta página.</p>;
 
