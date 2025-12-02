@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     });
 
     const spreadsheetId = fileRes.data.id!;
-    const sheetName = "Hoja 1";
+    const sheetName = "Sheet1";
 
     const values: (string | number)[][] = [];
     values.push(["Fecha", "Hora ingreso", "Hora salida", "Horas trabajadas"]);
