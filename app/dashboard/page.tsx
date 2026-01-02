@@ -1,11 +1,23 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 type Interval = { in: string; out: string };
 type DayEntry = { date: string; intervals: Interval[] };
+
+function isDayEmpty(day: DayEntry) {
+  return day.intervals.every(i => !i.in && !i.out);
+}
+
+function isDayInvalid(day: DayEntry) {
+  if (isDayEmpty(day)) return false;
+
+  return day.intervals.some(i => {
+    if (!i.in || !i.out) return true;
+    return i.in >= i.out;
+  });
+}
 
 export default function DashboardPage() {
   const { tokens, isLoggedIn, logout } = useAuth();
@@ -23,71 +35,47 @@ export default function DashboardPage() {
   useEffect(() => {
     const [y, m] = month.split("-").map(Number);
     const date = new Date(y, m - 1, 1);
-    const result: DayEntry[] = [];
+    const temp: DayEntry[] = [];
 
     while (date.getMonth() === m - 1) {
-      result.push({
-        date: date.toISOString().split("T")[0],
+      temp.push({
+        date: date.toISOString().slice(0, 10),
         intervals: [{ in: "", out: "" }],
       });
       date.setDate(date.getDate() + 1);
     }
 
-    setDays(result);
+    setDays(temp);
   }, [month]);
 
-  const validateDay = (day: DayEntry) => {
-    let hasAnyValue = false;
-    let hasError = false;
-
-    for (const i of day.intervals) {
-      if (i.in || i.out) hasAnyValue = true;
-
-      if ((i.in && !i.out) || (!i.in && i.out)) {
-        hasError = true;
-      }
-
-      if (i.in && i.out && i.in >= i.out) {
-        hasError = true;
-      }
-    }
-
-    return {
-      hasError: hasAnyValue && hasError,
-      isEmpty: !hasAnyValue,
-    };
-  };
-
-  const hasBlockingErrors = useMemo(
-    () => days.some(d => validateDay(d).hasError),
-    [days]
-  );
-
   const updateInterval = (
-    dayIndex: number,
-    intervalIndex: number,
+    d: number,
+    i: number,
     field: "in" | "out",
     value: string
   ) => {
-    const copy = structuredClone(days);
-    copy[dayIndex].intervals[intervalIndex][field] = value;
+    const copy = [...days];
+    copy[d].intervals[i][field] = value;
     setDays(copy);
   };
 
-  const addInterval = (dayIndex: number) => {
-    const copy = structuredClone(days);
-    copy[dayIndex].intervals.push({ in: "", out: "" });
+  const addInterval = (d: number) => {
+    const copy = [...days];
+    copy[d].intervals.push({ in: "", out: "" });
     setDays(copy);
   };
 
-  const removeInterval = (dayIndex: number, intervalIndex: number) => {
-    const copy = structuredClone(days);
-    copy[dayIndex].intervals.splice(intervalIndex, 1);
+  const removeInterval = (d: number, i: number) => {
+    const copy = [...days];
+    copy[d].intervals.splice(i, 1);
     setDays(copy);
   };
 
   const generateSheet = async () => {
-    if (!tokens) return logout();
+    if (!tokens) {
+      logout();
+      return;
+    }
 
     setLoading(true);
     setSheetUrl(null);
@@ -99,114 +87,140 @@ export default function DashboardPage() {
         body: JSON.stringify({ month, days, tokens }),
       });
 
+      if (res.status === 401) {
+        alert("Sesión expirada");
+        logout();
+        return;
+      }
+
       const data = await res.json();
-      if (data.url) setSheetUrl(data.url);
+
+      if (data.url) {
+        setSheetUrl(data.url);
+        alert("Planilla creada correctamente");
+      } else {
+        alert(data.error || "Error al generar planilla");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  if (!isLoggedIn) return null;
+  if (!isLoggedIn)
+    return <p className="p-6 text-slate-300">Debes iniciar sesión</p>;
 
   return (
-    <div className="p-4 max-w-6xl mx-auto text-white space-y-6">
-      <header className="flex justify-between items-center">
-        <h1 className="font-bold">Horarios · Planilla mensual</h1>
-        <button onClick={logout} className="text-blue-400 text-sm">
+    <div className="min-h-screen bg-linear-to-b from-black via-slate-900 to-black text-slate-100">
+      <header className="flex justify-between items-center px-6 py-4 border-b border-slate-800">
+        <h1 className="font-semibold text-lg">Horarios · Planilla mensual</h1>
+        <button onClick={logout} className="text-sm text-blue-400 hover:underline">
           Cerrar sesión
         </button>
       </header>
 
-      <div className="bg-slate-900/60 p-4 rounded-xl">
-        <label className="text-sm block mb-2">Mes de trabajo</label>
-        <input
-          type="month"
-          value={month}
-          onChange={e => setMonth(e.target.value)}
-          className="bg-slate-800 border border-slate-700 rounded px-3 py-2"
-        />
-      </div>
+      <main className="max-w-7xl mx-auto p-6 space-y-6">
+        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
+          <label className="block text-sm mb-1 text-slate-300">
+            Mes de trabajo
+          </label>
+          <input
+            type="month"
+            value={month}
+            onChange={e => setMonth(e.target.value)}
+            className="bg-slate-800 border border-slate-700 rounded px-3 py-2"
+          />
+        </div>
 
-      <AnimatePresence>
-        {days.map((day, dayIndex) => {
-          const { hasError } = validateDay(day);
+        <div className="space-y-4">
+          {days.map((day, dIndex) => {
+            const invalid = isDayInvalid(day);
 
-          return (
-            <motion.div
-              key={day.date}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`rounded-xl p-4 border ${
-                hasError
-                  ? "border-red-500/60 bg-red-500/10"
-                  : "border-slate-800 bg-slate-900/40"
-              }`}
-            >
-              <div className="font-mono mb-3">{day.date}</div>
+            return (
+              <div
+                key={day.date}
+                className={`rounded-xl p-4 border transition
+                  ${
+                    invalid
+                      ? "border-red-600 bg-red-950/30"
+                      : "border-slate-800 bg-slate-900"
+                  }`}
+              >
+                <div className="font-medium mb-3">{day.date}</div>
 
-              <div className="space-y-2">
-                {day.intervals.map((interval, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <input
-                      type="time"
-                      value={interval.in}
-                      onChange={e =>
-                        updateInterval(dayIndex, i, "in", e.target.value)
-                      }
-                      className="bg-slate-800 border rounded px-2 py-1"
-                    />
-                    <input
-                      type="time"
-                      value={interval.out}
-                      onChange={e =>
-                        updateInterval(dayIndex, i, "out", e.target.value)
-                      }
-                      className="bg-slate-800 border rounded px-2 py-1"
-                    />
-                    {day.intervals.length > 1 && (
-                      <button
-                        onClick={() => removeInterval(dayIndex, i)}
-                        className="bg-red-600 text-white px-2 rounded"
-                      >
-                        −
-                      </button>
-                    )}
-                  </div>
-                ))}
+                <div className="space-y-2">
+                  {day.intervals.map((interval, i) => (
+                    <div
+                      key={i}
+                      className="flex flex-col sm:flex-row gap-2 items-center w-full"
+                    >
+                      <input
+                        type="time"
+                        value={interval.in}
+                        onChange={e =>
+                          updateInterval(dIndex, i, "in", e.target.value)
+                        }
+                        className="bg-slate-800 border border-slate-700 rounded px-3 py-2 w-full sm:max-w-[180px] md:max-w-none flex-1"
+                      />
+
+                      <input
+                        type="time"
+                        value={interval.out}
+                        onChange={e =>
+                          updateInterval(dIndex, i, "out", e.target.value)
+                        }
+                        className="bg-slate-800 border border-slate-700 rounded px-3 py-2 w-full sm:max-w-[180px] md:max-w-none flex-1"
+                      />
+
+                      {day.intervals.length > 1 && (
+                        <button
+                          onClick={() => removeInterval(dIndex, i)}
+                          className="bg-red-600 text-white px-2 py-2 rounded"
+                        >
+                          −
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {invalid && (
+                  <p className="text-red-400 text-sm mt-2">
+                    ⚠ Día incompleto o con horarios inválidos
+                  </p>
+                )}
 
                 <button
-                  onClick={() => addInterval(dayIndex)}
-                  className="bg-green-600 text-sm px-3 py-1 rounded w-fit"
+                  onClick={() => addInterval(dIndex)}
+                  className="mt-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-3 py-1 rounded"
                 >
                   +
                 </button>
               </div>
+            );
+          })}
+        </div>
 
-              {hasError && (
-                <p className="text-red-400 text-sm mt-2">
-                  ⚠ Día incompleto o con horarios inválidos
-                </p>
-              )}
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+        <div className="pt-4 flex flex-col sm:flex-row gap-4 items-center">
+          <button
+            onClick={generateSheet}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-6 py-2 rounded"
+          >
+            {loading ? "Generando..." : "Generar planilla"}
+          </button>
 
-      <div className="flex gap-4 items-center">
-        <button
-          onClick={generateSheet}
-          disabled={loading || hasBlockingErrors}
-          className="bg-blue-600 px-4 py-2 rounded disabled:opacity-50"
-        >
-          Generar planilla
-        </button>
-
-        {sheetUrl && (
-          <a href={sheetUrl} target="_blank" className="underline text-blue-400">
-            Abrir planilla
-          </a>
-        )}
-      </div>
+          {sheetUrl && (
+            <a
+              href={sheetUrl}
+              target="_blank"
+              className="text-blue-400 underline"
+              rel="noreferrer"
+            >
+              Abrir planilla
+            </a>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
