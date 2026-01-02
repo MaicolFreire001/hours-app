@@ -155,13 +155,13 @@ export default function DashboardPage() {
 
               <div className="space-y-2">
                 {day.intervals.map((interval, i) => (
-                  <div
+                  <motion.div
                     key={i}
-                    className="
-                      flex flex-col sm:flex-row
-                      gap-2 items-center
-                      w-full
-                    "
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col sm:flex-row gap-2 items-center"
                   >
                     <input
                       type="time"
@@ -207,7 +207,7 @@ export default function DashboardPage() {
                         −
                       </button>
                     )}
-                  </div>
+                  </motion.div>
                 ))}
 
                 <button
