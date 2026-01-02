@@ -68,7 +68,6 @@ export default function DashboardPage() {
 
   const generateSheet = async () => {
     if (!tokens) {
-      alert("Debes iniciar sesión");
       logout();
       return;
     }
@@ -86,18 +85,11 @@ export default function DashboardPage() {
       const data = await res.json();
 
       if (res.status === 401) {
-        alert("Tu sesión expiró. Iniciá sesión nuevamente.");
         logout();
         return;
       }
 
-      if (data.url) {
-        setSheetUrl(data.url);
-      } else {
-        alert(data.error || "Error al generar la planilla");
-      }
-    } catch {
-      alert("Error de red");
+      if (data.url) setSheetUrl(data.url);
     } finally {
       setLoading(false);
     }
@@ -115,10 +107,8 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-slate-900 text-slate-100">
       {/* HEADER */}
       <header className="sticky top-0 z-10 bg-slate-950 border-b border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-lg font-semibold">
-            Horarios · Planilla mensual
-          </h1>
+        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between">
+          <h1 className="font-semibold">Horarios · Planilla mensual</h1>
           <button
             onClick={logout}
             className="text-slate-400 hover:text-red-400 transition"
@@ -138,17 +128,12 @@ export default function DashboardPage() {
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="
-              bg-slate-900 border border-slate-700 rounded-md
-              px-3 py-2 text-slate-100
-              focus:outline-none focus:ring-2 focus:ring-blue-500
-              transition
-            "
+            className="bg-slate-900 border border-slate-700 rounded-md px-3 py-2"
           />
         </div>
 
-        {/* MOBILE VIEW */}
-        <div className="space-y-4 md:hidden">
+        {/* CARDS – mobile + tablet */}
+        <div className="space-y-4 lg:hidden">
           {days.map((day, dayIndex) => (
             <div
               key={day.date}
@@ -157,39 +142,53 @@ export default function DashboardPage() {
               <div className="font-semibold">{day.date}</div>
 
               {day.intervals.map((interval, intervalIndex) => (
-                <div key={intervalIndex} className="flex gap-2 items-center">
+                <div
+                  key={intervalIndex}
+                  className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end"
+                >
                   <input
                     type="time"
                     value={interval.in}
                     onChange={(e) =>
                       updateInterval(dayIndex, intervalIndex, "in", e.target.value)
                     }
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1"
+                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1"
                   />
+
                   <input
                     type="time"
                     value={interval.out}
                     onChange={(e) =>
                       updateInterval(dayIndex, intervalIndex, "out", e.target.value)
                     }
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1"
+                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1"
                   />
-                  <button
-                    onClick={() => addInterval(dayIndex)}
-                    className="bg-emerald-600 hover:bg-emerald-500 transition text-white px-2 py-1 rounded"
-                  >
-                    +
-                  </button>
+
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => addInterval(dayIndex)}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded"
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={() => removeInterval(dayIndex, intervalIndex)}
+                      disabled={day.intervals.length === 1}
+                      className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white px-2 py-1 rounded"
+                    >
+                      −
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           ))}
         </div>
 
-        {/* DESKTOP TABLE */}
-        <div className="hidden md:block bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+        {/* TABLE – desktop grande */}
+        <div className="hidden lg:block bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-800 text-slate-300">
+            <thead className="bg-slate-800">
               <tr>
                 <th className="px-3 py-2 text-left">Fecha</th>
                 <th className="px-3 py-2">Ingreso</th>
@@ -200,15 +199,9 @@ export default function DashboardPage() {
             <tbody>
               {days.map((day, dayIndex) =>
                 day.intervals.map((interval, intervalIndex) => (
-                  <tr
-                    key={`${day.date}-${intervalIndex}`}
-                    className="border-t border-slate-800 hover:bg-slate-800/40 transition"
-                  >
+                  <tr key={`${day.date}-${intervalIndex}`} className="border-t border-slate-800">
                     {intervalIndex === 0 && (
-                      <td
-                        rowSpan={day.intervals.length}
-                        className="px-3 py-2 font-medium"
-                      >
+                      <td rowSpan={day.intervals.length} className="px-3 py-2">
                         {day.date}
                       </td>
                     )}
@@ -235,18 +228,17 @@ export default function DashboardPage() {
                     <td className="px-3 py-2 flex gap-1 justify-center">
                       <button
                         onClick={() => addInterval(dayIndex)}
-                        className="bg-emerald-600 hover:bg-emerald-500 transition text-white px-2 py-1 rounded"
+                        className="bg-emerald-600 text-white px-2 py-1 rounded"
                       >
                         +
                       </button>
-                      {day.intervals.length > 1 && (
-                        <button
-                          onClick={() => removeInterval(dayIndex, intervalIndex)}
-                          className="bg-red-600 hover:bg-red-500 transition text-white px-2 py-1 rounded"
-                        >
-                          −
-                        </button>
-                      )}
+                      <button
+                        onClick={() => removeInterval(dayIndex, intervalIndex)}
+                        disabled={day.intervals.length === 1}
+                        className="bg-red-600 disabled:opacity-40 text-white px-2 py-1 rounded"
+                      >
+                        −
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -260,11 +252,7 @@ export default function DashboardPage() {
           <button
             onClick={generateSheet}
             disabled={loading}
-            className="
-              bg-blue-600 hover:bg-blue-500 transition
-              text-white px-5 py-2 rounded-lg
-              disabled:opacity-50
-            "
+            className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg disabled:opacity-50"
           >
             {loading ? "Generando..." : "Generar planilla"}
           </button>
@@ -274,7 +262,7 @@ export default function DashboardPage() {
               href={sheetUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline transition"
+              className="text-blue-400 underline"
             >
               Abrir planilla
             </a>
