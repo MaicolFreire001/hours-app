@@ -1,43 +1,43 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  startTransition,
+} from "react";
 
 type AuthContextType = {
   tokens: any | null;
   isLoggedIn: boolean;
+  loading: boolean;
   loginWithGoogle: () => void;
   logout: () => void;
 };
 
-const AuthContext = createContext<AuthContextType>({
-  tokens: null,
-  isLoggedIn: false,
-  loginWithGoogle: () => {},
-  logout: () => {},
-});
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [tokens, setTokens] = useState<any | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [tokens, setTokens] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
 
-    const stored = localStorage.getItem("googleTokens");
-    if (!stored) return null;
+  useEffect(() => {
+    let parsed: any | null = null;
 
     try {
-      const parsed = JSON.parse(stored);
-
-      if (!parsed?.access_token) {
-        localStorage.removeItem("googleTokens");
-        return null;
-      }
-
-      return parsed;
+      const stored = localStorage.getItem("googleTokens");
+      if (stored) parsed = JSON.parse(stored);
     } catch {
       localStorage.removeItem("googleTokens");
-      return null;
     }
-  });
+
+    startTransition(() => {
+      setTokens(parsed);
+      setLoading(false);
+    });
+  }, []);
 
   const loginWithGoogle = () => {
     window.location.href = "/api/auth/google";
@@ -49,15 +49,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = "/";
   };
 
-  const isLoggedIn = !!tokens;
-
   return (
     <AuthContext.Provider
-      value={{ tokens, isLoggedIn, loginWithGoogle, logout }}
+      value={{
+        tokens,
+        isLoggedIn: !!tokens,
+        loading,
+        loginWithGoogle,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return ctx;
+}

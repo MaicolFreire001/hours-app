@@ -7,19 +7,27 @@ type Interval = { in: string; out: string };
 type DayEntry = { date: string; intervals: Interval[] };
 
 export default function DashboardPage() {
-  const { tokens, isLoggedIn, logout } = useAuth();
+  const { tokens, isLoggedIn, logout, loading: authLoading } = useAuth();
 
-  const today = new Date();
-  const currentMonth = `${today.getFullYear()}-${(today.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")}`;
-
-  const [month, setMonth] = useState(currentMonth);
+  const [month, setMonth] = useState<string | null>(null);
   const [days, setDays] = useState<DayEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [sheetUrl, setSheetUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
+
+    const today = new Date();
+    const currentMonth = `${today.getFullYear()}-${(today.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}`;
+
+    setMonth(currentMonth);
+  }, [authLoading]);
+
+  useEffect(() => {
+    if (!month) return;
+
     const [yearStr, monthStr] = month.split("-");
     const year = parseInt(yearStr);
     const monthNum = parseInt(monthStr);
@@ -44,15 +52,19 @@ export default function DashboardPage() {
   }, [month]);
 
   const addInterval = (dayIndex: number) => {
-    const copy = [...days];
-    copy[dayIndex].intervals.push({ in: "", out: "" });
-    setDays(copy);
+    setDays((prev) => {
+      const copy = [...prev];
+      copy[dayIndex].intervals.push({ in: "", out: "" });
+      return copy;
+    });
   };
 
   const removeInterval = (dayIndex: number, intervalIndex: number) => {
-    const copy = [...days];
-    copy[dayIndex].intervals.splice(intervalIndex, 1);
-    setDays(copy);
+    setDays((prev) => {
+      const copy = [...prev];
+      copy[dayIndex].intervals.splice(intervalIndex, 1);
+      return copy;
+    });
   };
 
   const updateInterval = (
@@ -61,63 +73,63 @@ export default function DashboardPage() {
     field: "in" | "out",
     value: string
   ) => {
-    const copy = [...days];
-    copy[dayIndex].intervals[intervalIndex][field] = value;
-    setDays(copy);
+    setDays((prev) => {
+      const copy = [...prev];
+      copy[dayIndex].intervals[intervalIndex][field] = value;
+      return copy;
+    });
   };
 
-const generateSheet = async () => {
-  if (!tokens) {
-    alert("Debes iniciar sesión");
-    logout();
-    return;
-  }
-
-  setLoading(true);
-  setSheetUrl(null);
-
-  try {
-    const res = await fetch("/api/create-sheet", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ month, days, tokens }),
-    });
-
-    const data = await res.json();
-
-    if (res.status === 401 && data.needLogin) {
-      alert("Tu sesión expiró. Iniciá sesión nuevamente.");
+  const generateSheet = async () => {
+    if (!tokens) {
+      alert("Debes iniciar sesión");
       logout();
       return;
     }
 
-    if (data.newTokens) {
-      const updatedTokens = {
-        ...tokens,
-        ...data.newTokens,
-      };
-      localStorage.setItem("googleTokens", JSON.stringify(updatedTokens));
-    }
+    setLoading(true);
+    setSheetUrl(null);
 
-    if (data.url) {
-      setSheetUrl(data.url);
-      alert("Planilla creada correctamente!");
-    } else if (data.error) {
-      alert("Error: " + data.error);
-    } else {
-      alert("Error al generar la planilla");
-    }
+    try {
+      const res = await fetch("/api/create-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month, days, tokens }),
+      });
 
-  } catch (err) {
-    console.error(err);
-    alert("Error de red");
-  } finally {
-    setLoading(false);
+      if (res.status === 401) {
+        alert("Tu sesión expiró. Iniciá sesión nuevamente.");
+        logout();
+        return;
+      }
+
+      const data = await res.json();
+
+      if (data.url) {
+        setSheetUrl(data.url);
+        alert("Planilla creada correctamente!");
+      } else if (data.error) {
+        alert("Error: " + data.error);
+      } else {
+        alert("Error al generar la planilla");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error de red");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (authLoading) {
+    return <p className="p-4">Cargando sesión...</p>;
   }
-};
 
-  if (!isLoggedIn)
+  if (!isLoggedIn) {
     return <p className="p-4">Debes iniciar sesión para usar esta página.</p>;
+  }
+
+  if (!month) return null;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
