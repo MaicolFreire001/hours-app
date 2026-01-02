@@ -1,272 +1,218 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
-type Interval = { in: string; out: string };
-type DayEntry = { date: string; intervals: Interval[] };
+type Entry = {
+  in: string;
+  out: string;
+};
 
-export default function DashboardPage() {
-  const { tokens, isLoggedIn, logout } = useAuth();
+type Day = {
+  date: string;
+  entries: Entry[];
+};
 
-  const today = new Date();
-  const currentMonth = `${today.getFullYear()}-${(today.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")}`;
+function isInvalid(entry: Entry) {
+  if (!entry.in || !entry.out) return true;
+  return entry.in >= entry.out;
+}
 
-  const [month, setMonth] = useState(currentMonth);
-  const [days, setDays] = useState<DayEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
+export default function MonthlySheet() {
+  const [days, setDays] = useState<Day[]>([
+    {
+      date: "2026-01-01",
+      entries: [{ in: "10:22", out: "13:24" }],
+    },
+    {
+      date: "2026-01-02",
+      entries: [{ in: "", out: "" }],
+    },
+  ]);
 
-  useEffect(() => {
-    const [yearStr, monthStr] = month.split("-");
-    const year = parseInt(yearStr);
-    const monthNum = parseInt(monthStr);
-
-    const date = new Date(year, monthNum - 1, 1);
-    const tempDays: DayEntry[] = [];
-
-    while (date.getMonth() === monthNum - 1) {
-      const yyyy = date.getFullYear();
-      const mm = (date.getMonth() + 1).toString().padStart(2, "0");
-      const dd = date.getDate().toString().padStart(2, "0");
-
-      tempDays.push({
-        date: `${yyyy}-${mm}-${dd}`,
-        intervals: [{ in: "", out: "" }],
-      });
-
-      date.setDate(date.getDate() + 1);
-    }
-
-    setDays(tempDays);
-  }, [month]);
-
-  const addInterval = (dayIndex: number) => {
-    const copy = [...days];
-    copy[dayIndex].intervals.push({ in: "", out: "" });
-    setDays(copy);
-  };
-
-  const removeInterval = (dayIndex: number, intervalIndex: number) => {
-    const copy = [...days];
-    copy[dayIndex].intervals.splice(intervalIndex, 1);
-    setDays(copy);
-  };
-
-  const updateInterval = (
+  function updateEntry(
     dayIndex: number,
-    intervalIndex: number,
+    entryIndex: number,
     field: "in" | "out",
     value: string
-  ) => {
-    const copy = [...days];
-    copy[dayIndex].intervals[intervalIndex][field] = value;
-    setDays(copy);
-  };
+  ) {
+    setDays((prev) =>
+      prev.map((day, dIdx) =>
+        dIdx !== dayIndex
+          ? day
+          : {
+              ...day,
+              entries: day.entries.map((e, eIdx) =>
+                eIdx !== entryIndex ? e : { ...e, [field]: value }
+              ),
+            }
+      )
+    );
+  }
 
-  const generateSheet = async () => {
-    if (!tokens) {
-      logout();
-      return;
-    }
+  function addEntry(dayIndex: number) {
+    setDays((prev) =>
+      prev.map((day, i) =>
+        i === dayIndex
+          ? { ...day, entries: [...day.entries, { in: "", out: "" }] }
+          : day
+      )
+    );
+  }
 
-    setLoading(true);
-    setSheetUrl(null);
-
-    try {
-      const res = await fetch("/api/create-sheet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, days, tokens }),
-      });
-
-      const data = await res.json();
-
-      if (res.status === 401) {
-        logout();
-        return;
-      }
-
-      if (data.url) setSheetUrl(data.url);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-slate-900 text-slate-200 flex items-center justify-center">
-        Debes iniciar sesión
-      </div>
+  function removeEntry(dayIndex: number, entryIndex: number) {
+    setDays((prev) =>
+      prev.map((day, i) =>
+        i === dayIndex
+          ? {
+              ...day,
+              entries: day.entries.filter((_, e) => e !== entryIndex),
+            }
+          : day
+      )
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
-      {/* HEADER */}
-      <header className="sticky top-0 z-10 bg-slate-950 border-b border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between">
-          <h1 className="font-semibold">Horarios · Planilla mensual</h1>
-          <button
-            onClick={logout}
-            className="text-slate-400 hover:text-red-400 transition"
-          >
-            Cerrar sesión
-          </button>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      {/* Header */}
+      <header className="border-b border-slate-800 px-6 py-4 flex justify-between items-center">
+        <h1 className="text-lg font-semibold">
+          Horarios · Planilla mensual
+        </h1>
+        <button className="text-sm text-slate-300 hover:text-white transition">
+          Cerrar sesión
+        </button>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        {/* MES */}
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+      <main className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
+        {/* Selector mes */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
           <label className="block text-sm text-slate-400 mb-2">
             Mes de trabajo
           </label>
           <input
             type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-md px-3 py-2"
+            defaultValue="2026-01"
+            className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
 
-        {/* CARDS – mobile + tablet */}
-        <div className="space-y-4 lg:hidden">
-          {days.map((day, dayIndex) => (
-            <div
-              key={day.date}
-              className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3"
-            >
-              <div className="font-semibold">{day.date}</div>
+        {/* Tabla */}
+        <div className="rounded-xl border border-slate-800 overflow-hidden">
+          <div className="hidden md:grid grid-cols-[140px_1fr_1fr_140px] bg-slate-800 text-slate-300 text-sm font-medium px-4 py-3">
+            <div>Fecha</div>
+            <div>Ingreso</div>
+            <div>Salida</div>
+            <div className="text-center">Acciones</div>
+          </div>
 
-              {day.intervals.map((interval, intervalIndex) => (
-                <div
-                  key={intervalIndex}
-                  className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end"
+          <div className="divide-y divide-slate-800">
+            {days.map((day, dayIndex) => {
+              const hasErrors = day.entries.some(isInvalid);
+
+              return (
+                <motion.div
+                  key={day.date}
+                  layout
+                  className={`px-4 py-4 transition-colors ${
+                    hasErrors
+                      ? "bg-red-950/20 border-l-4 border-red-500"
+                      : "bg-slate-900/40"
+                  }`}
                 >
-                  <input
-                    type="time"
-                    value={interval.in}
-                    onChange={(e) =>
-                      updateInterval(dayIndex, intervalIndex, "in", e.target.value)
-                    }
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1"
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_1fr_140px] gap-4 items-start">
+                    {/* Fecha */}
+                    <div className="text-sm font-medium pt-2">
+                      {day.date}
+                    </div>
 
-                  <input
-                    type="time"
-                    value={interval.out}
-                    onChange={(e) =>
-                      updateInterval(dayIndex, intervalIndex, "out", e.target.value)
-                    }
-                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1"
-                  />
+                    {/* Ingreso */}
+                    <div className="space-y-2">
+                      {day.entries.map((entry, entryIndex) => (
+                        <input
+                          key={`in-${entryIndex}`}
+                          type="time"
+                          value={entry.in}
+                          onChange={(e) =>
+                            updateEntry(
+                              dayIndex,
+                              entryIndex,
+                              "in",
+                              e.target.value
+                            )
+                          }
+                          className={`w-full h-11 rounded-md bg-slate-950 px-3 text-sm border transition focus:outline-none focus:ring-2 ${
+                            isInvalid(entry)
+                              ? "border-red-500 focus:ring-red-500"
+                              : "border-slate-600 focus:ring-emerald-500"
+                          }`}
+                        />
+                      ))}
+                    </div>
 
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => addInterval(dayIndex)}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded"
-                    >
-                      +
-                    </button>
-                    <button
-                      onClick={() => removeInterval(dayIndex, intervalIndex)}
-                      disabled={day.intervals.length === 1}
-                      className="bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white px-2 py-1 rounded"
-                    >
-                      −
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
+                    {/* Salida */}
+                    <div className="space-y-2">
+                      {day.entries.map((entry, entryIndex) => (
+                        <input
+                          key={`out-${entryIndex}`}
+                          type="time"
+                          value={entry.out}
+                          onChange={(e) =>
+                            updateEntry(
+                              dayIndex,
+                              entryIndex,
+                              "out",
+                              e.target.value
+                            )
+                          }
+                          className={`w-full h-11 rounded-md bg-slate-950 px-3 text-sm border transition focus:outline-none focus:ring-2 ${
+                            isInvalid(entry)
+                              ? "border-red-500 focus:ring-red-500"
+                              : "border-slate-600 focus:ring-emerald-500"
+                          }`}
+                        />
+                      ))}
+                    </div>
 
-        {/* TABLE – desktop grande */}
-        <div className="hidden lg:block bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-800">
-              <tr>
-                <th className="px-3 py-2 text-left">Fecha</th>
-                <th className="px-3 py-2">Ingreso</th>
-                <th className="px-3 py-2">Salida</th>
-                <th className="px-3 py-2">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {days.map((day, dayIndex) =>
-                day.intervals.map((interval, intervalIndex) => (
-                  <tr key={`${day.date}-${intervalIndex}`} className="border-t border-slate-800">
-                    {intervalIndex === 0 && (
-                      <td rowSpan={day.intervals.length} className="px-3 py-2">
-                        {day.date}
-                      </td>
-                    )}
-                    <td className="px-3 py-2">
-                      <input
-                        type="time"
-                        value={interval.in}
-                        onChange={(e) =>
-                          updateInterval(dayIndex, intervalIndex, "in", e.target.value)
-                        }
-                        className="bg-slate-900 border border-slate-700 rounded px-2 py-1"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="time"
-                        value={interval.out}
-                        onChange={(e) =>
-                          updateInterval(dayIndex, intervalIndex, "out", e.target.value)
-                        }
-                        className="bg-slate-900 border border-slate-700 rounded px-2 py-1"
-                      />
-                    </td>
-                    <td className="px-3 py-2 flex gap-1 justify-center">
+                    {/* Acciones */}
+                    <div className="flex md:flex-col gap-2 justify-start md:justify-center">
                       <button
-                        onClick={() => addInterval(dayIndex)}
-                        className="bg-emerald-600 text-white px-2 py-1 rounded"
+                        onClick={() => addEntry(dayIndex)}
+                        className="h-11 w-11 rounded-md bg-emerald-600 hover:bg-emerald-500 transition text-lg"
                       >
                         +
                       </button>
-                      <button
-                        onClick={() => removeInterval(dayIndex, intervalIndex)}
-                        disabled={day.intervals.length === 1}
-                        className="bg-red-600 disabled:opacity-40 text-white px-2 py-1 rounded"
-                      >
-                        −
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
 
-        {/* ACTIONS */}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={generateSheet}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg disabled:opacity-50"
-          >
-            {loading ? "Generando..." : "Generar planilla"}
-          </button>
+                      <AnimatePresence>
+                        {day.entries.length > 1 && (
+                          <motion.button
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            onClick={() =>
+                              removeEntry(dayIndex, day.entries.length - 1)
+                            }
+                            className="h-11 w-11 rounded-md bg-red-600 hover:bg-red-500 transition text-lg"
+                          >
+                            −
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
 
-          {sheetUrl && (
-            <a
-              href={sheetUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-blue-400 underline"
-            >
-              Abrir planilla
-            </a>
-          )}
+                  {/* Error */}
+                  {hasErrors && (
+                    <p className="mt-3 text-xs text-red-400">
+                      ⚠ Día incompleto o con horarios inválidos (entrada ≥
+                      salida)
+                    </p>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
       </main>
     </div>
