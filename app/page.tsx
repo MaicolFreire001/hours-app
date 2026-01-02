@@ -15,7 +15,7 @@ export default function HomePage() {
   }, [isLoggedIn, router]);
 
   return (
-    <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
+    <div className="h-screen flex flex-col items-center justify-center bg-gray-400">
       <h1 className="text-4xl font-bold mb-6">Bienvenido a Hours App</h1>
       <p className="mb-6 text-center text-gray-700">
         Lleva el control de tus horarios y genera planillas automáticamente.

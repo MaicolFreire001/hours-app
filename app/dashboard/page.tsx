@@ -66,48 +66,55 @@ export default function DashboardPage() {
     setDays(copy);
   };
 
-  // 🔴 ACÁ ESTÁ EL CAMBIO IMPORTANTE
-  const generateSheet = async () => {
-    if (!tokens) {
-      alert("Debes iniciar sesión");
+const generateSheet = async () => {
+  if (!tokens) {
+    alert("Debes iniciar sesión");
+    logout();
+    return;
+  }
+
+  setLoading(true);
+  setSheetUrl(null);
+
+  try {
+    const res = await fetch("/api/create-sheet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month, days, tokens }),
+    });
+
+    const data = await res.json();
+
+    if (res.status === 401 && data.needLogin) {
+      alert("Tu sesión expiró. Iniciá sesión nuevamente.");
       logout();
       return;
     }
 
-    setLoading(true);
-    setSheetUrl(null);
-
-    try {
-      const res = await fetch("/api/create-sheet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, days, tokens }),
-      });
-
-      // 🔐 sesión expirada
-      if (res.status === 401) {
-        alert("Tu sesión expiró. Iniciá sesión nuevamente.");
-        logout();
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.url) {
-        setSheetUrl(data.url);
-        alert("Planilla creada correctamente!");
-      } else if (data.error) {
-        alert("Error: " + data.error);
-      } else {
-        alert("Error al generar la planilla");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error de red");
-    } finally {
-      setLoading(false);
+    if (data.newTokens) {
+      const updatedTokens = {
+        ...tokens,
+        ...data.newTokens,
+      };
+      localStorage.setItem("googleTokens", JSON.stringify(updatedTokens));
     }
-  };
+
+    if (data.url) {
+      setSheetUrl(data.url);
+      alert("Planilla creada correctamente!");
+    } else if (data.error) {
+      alert("Error: " + data.error);
+    } else {
+      alert("Error al generar la planilla");
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("Error de red");
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!isLoggedIn)
     return <p className="p-4">Debes iniciar sesión para usar esta página.</p>;
