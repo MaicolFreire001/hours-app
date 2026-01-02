@@ -123,7 +123,6 @@ export default function DashboardPage() {
           type="month"
           value={month}
           onChange={e => setMonth(e.target.value)}
-          //className="bg-slate-800 border border-slate-700 rounded px-3 py-2"
           className="
             bg-slate-800 border border-slate-700 rounded
             px-3 py-2
@@ -142,8 +141,10 @@ export default function DashboardPage() {
           return (
             <motion.div
               key={day.date}
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
               className={`rounded-xl p-4 border ${
                 hasError
                   ? "border-red-500/60 bg-red-500/10"
