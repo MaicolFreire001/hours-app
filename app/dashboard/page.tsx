@@ -11,25 +11,21 @@ export default function DashboardPage() {
   const { tokens, isLoggedIn, logout } = useAuth();
 
   const today = new Date();
-  const currentMonth = `${today.getFullYear()}-${(today.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")}`;
+  const currentMonth = `${today.getFullYear()}-${String(
+    today.getMonth() + 1
+  ).padStart(2, "0")}`;
 
   const [month, setMonth] = useState(currentMonth);
   const [days, setDays] = useState<DayEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [sheetUrl, setSheetUrl] = useState<string | null>(null);
 
-
   useEffect(() => {
-    const [yearStr, monthStr] = month.split("-");
-    const year = Number(yearStr);
-    const monthNum = Number(monthStr);
-
-    const date = new Date(year, monthNum - 1, 1);
+    const [y, m] = month.split("-").map(Number);
+    const date = new Date(y, m - 1, 1);
     const result: DayEntry[] = [];
 
-    while (date.getMonth() === monthNum - 1) {
+    while (date.getMonth() === m - 1) {
       result.push({
         date: date.toISOString().split("T")[0],
         intervals: [{ in: "", out: "" }],
@@ -40,29 +36,32 @@ export default function DashboardPage() {
     setDays(result);
   }, [month]);
 
-
   const validateDay = (day: DayEntry) => {
+    let hasAnyValue = false;
     let hasError = false;
-    let incomplete = false;
 
     for (const i of day.intervals) {
-      if (!i.in || !i.out) {
-        incomplete = true;
-      } else if (i.in >= i.out) {
+      if (i.in || i.out) hasAnyValue = true;
+
+      if ((i.in && !i.out) || (!i.in && i.out)) {
+        hasError = true;
+      }
+
+      if (i.in && i.out && i.in >= i.out) {
         hasError = true;
       }
     }
 
-    return { hasError, incomplete };
+    return {
+      hasError: hasAnyValue && hasError,
+      isEmpty: !hasAnyValue,
+    };
   };
 
-  const hasAnyErrors = useMemo(() => {
-    return days.some(d => {
-      const v = validateDay(d);
-      return v.hasError;
-    });
-  }, [days]);
-
+  const hasBlockingErrors = useMemo(
+    () => days.some(d => validateDay(d).hasError),
+    [days]
+  );
 
   const updateInterval = (
     dayIndex: number,
@@ -87,12 +86,8 @@ export default function DashboardPage() {
     setDays(copy);
   };
 
-
   const generateSheet = async () => {
-    if (!tokens) {
-      logout();
-      return;
-    }
+    if (!tokens) return logout();
 
     setLoading(true);
     setSheetUrl(null);
@@ -105,12 +100,6 @@ export default function DashboardPage() {
       });
 
       const data = await res.json();
-
-      if (res.status === 401 && data.needLogin) {
-        logout();
-        return;
-      }
-
       if (data.url) setSheetUrl(data.url);
     } finally {
       setLoading(false);
@@ -120,16 +109,16 @@ export default function DashboardPage() {
   if (!isLoggedIn) return null;
 
   return (
-    <div className="p-4 max-w-6xl mx-auto space-y-6 text-white">
+    <div className="p-4 max-w-6xl mx-auto text-white space-y-6">
       <header className="flex justify-between items-center">
-        <h1 className="text-xl font-bold">Horarios · Planilla mensual</h1>
-        <button onClick={logout} className="text-sm text-blue-400">
+        <h1 className="font-bold">Horarios · Planilla mensual</h1>
+        <button onClick={logout} className="text-blue-400 text-sm">
           Cerrar sesión
         </button>
       </header>
 
       <div className="bg-slate-900/60 p-4 rounded-xl">
-        <label className="block text-sm mb-2">Mes de trabajo</label>
+        <label className="text-sm block mb-2">Mes de trabajo</label>
         <input
           type="month"
           value={month}
@@ -138,75 +127,75 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="space-y-3">
-        <AnimatePresence>
-          {days.map((day, dayIndex) => {
-            const { hasError, incomplete } = validateDay(day);
+      <AnimatePresence>
+        {days.map((day, dayIndex) => {
+          const { hasError } = validateDay(day);
 
-            return (
-              <motion.div
-                key={day.date}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`rounded-xl p-4 border ${
-                  hasError || incomplete
-                    ? "border-red-500/50 bg-red-500/10"
-                    : "border-slate-800 bg-slate-900/40"
-                }`}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
-                  <div className="font-mono">{day.date}</div>
+          return (
+            <motion.div
+              key={day.date}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`rounded-xl p-4 border ${
+                hasError
+                  ? "border-red-500/60 bg-red-500/10"
+                  : "border-slate-800 bg-slate-900/40"
+              }`}
+            >
+              <div className="font-mono mb-3">{day.date}</div>
 
-                  {day.intervals.map((interval, i) => (
-                    <div key={i} className="flex gap-2">
-                      <input
-                        type="time"
-                        value={interval.in}
-                        onChange={e =>
-                          updateInterval(dayIndex, i, "in", e.target.value)
-                        }
-                        className="bg-slate-800 border rounded px-2 py-1 w-full"
-                      />
-                      <input
-                        type="time"
-                        value={interval.out}
-                        onChange={e =>
-                          updateInterval(dayIndex, i, "out", e.target.value)
-                        }
-                        className="bg-slate-800 border rounded px-2 py-1 w-full"
-                      />
+              <div className="space-y-2">
+                {day.intervals.map((interval, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <input
+                      type="time"
+                      value={interval.in}
+                      onChange={e =>
+                        updateInterval(dayIndex, i, "in", e.target.value)
+                      }
+                      className="bg-slate-800 border rounded px-2 py-1"
+                    />
+                    <input
+                      type="time"
+                      value={interval.out}
+                      onChange={e =>
+                        updateInterval(dayIndex, i, "out", e.target.value)
+                      }
+                      className="bg-slate-800 border rounded px-2 py-1"
+                    />
+                    {day.intervals.length > 1 && (
                       <button
                         onClick={() => removeInterval(dayIndex, i)}
-                        className="bg-red-600 px-2 rounded"
+                        className="bg-red-600 text-white px-2 rounded"
                       >
                         −
                       </button>
-                    </div>
-                  ))}
+                    )}
+                  </div>
+                ))}
 
-                  <button
-                    onClick={() => addInterval(dayIndex)}
-                    className="bg-green-600 px-3 py-1 rounded"
-                  >
-                    +
-                  </button>
-                </div>
+                <button
+                  onClick={() => addInterval(dayIndex)}
+                  className="bg-green-600 text-sm px-3 py-1 rounded w-fit"
+                >
+                  +
+                </button>
+              </div>
 
-                {(hasError || incomplete) && (
-                  <p className="text-red-400 text-sm mt-2">
-                    ⚠ Día incompleto o con horarios inválidos
-                  </p>
-                )}
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </div>
+              {hasError && (
+                <p className="text-red-400 text-sm mt-2">
+                  ⚠ Día incompleto o con horarios inválidos
+                </p>
+              )}
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
 
       <div className="flex gap-4 items-center">
         <button
           onClick={generateSheet}
-          disabled={loading || hasAnyErrors}
+          disabled={loading || hasBlockingErrors}
           className="bg-blue-600 px-4 py-2 rounded disabled:opacity-50"
         >
           Generar planilla
