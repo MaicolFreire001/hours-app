@@ -7,23 +7,21 @@ type Interval = { in: string; out: string };
 type DayEntry = { date: string; intervals: Interval[] };
 
 export default function DashboardPage() {
-  const { tokens, isLoggedIn, logout, loading: authLoading } = useAuth();
+  const { tokens, isLoggedIn, logout } = useAuth();
 
-  const [month, setMonth] = useState<string | null>(null);
-  const [days, setDays] = useState<DayEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
+  const [month, setMonth] = useState<string>("");
 
   useEffect(() => {
-    if (authLoading) return;
-
     const today = new Date();
     const currentMonth = `${today.getFullYear()}-${(today.getMonth() + 1)
       .toString()
       .padStart(2, "0")}`;
-
     setMonth(currentMonth);
-  }, [authLoading]);
+  }, []);
+
+  const [days, setDays] = useState<DayEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!month) return;
@@ -52,16 +50,16 @@ export default function DashboardPage() {
   }, [month]);
 
   const addInterval = (dayIndex: number) => {
-    setDays((prev) => {
-      const copy = [...prev];
+    setDays(prev => {
+      const copy = structuredClone(prev);
       copy[dayIndex].intervals.push({ in: "", out: "" });
       return copy;
     });
   };
 
   const removeInterval = (dayIndex: number, intervalIndex: number) => {
-    setDays((prev) => {
-      const copy = [...prev];
+    setDays(prev => {
+      const copy = structuredClone(prev);
       copy[dayIndex].intervals.splice(intervalIndex, 1);
       return copy;
     });
@@ -73,8 +71,8 @@ export default function DashboardPage() {
     field: "in" | "out",
     value: string
   ) => {
-    setDays((prev) => {
-      const copy = [...prev];
+    setDays(prev => {
+      const copy = structuredClone(prev);
       copy[dayIndex].intervals[intervalIndex][field] = value;
       return copy;
     });
@@ -97,21 +95,23 @@ export default function DashboardPage() {
         body: JSON.stringify({ month, days, tokens }),
       });
 
-      if (res.status === 401) {
+      const data = await res.json();
+
+      if (res.status === 401 && data.needLogin) {
         alert("Tu sesión expiró. Iniciá sesión nuevamente.");
         logout();
         return;
       }
 
-      const data = await res.json();
+      if (data.newTokens) {
+        const updatedTokens = { ...tokens, ...data.newTokens };
+        localStorage.setItem("googleTokens", JSON.stringify(updatedTokens));
+      }
 
       if (data.url) {
         setSheetUrl(data.url);
-        alert("Planilla creada correctamente!");
-      } else if (data.error) {
-        alert("Error: " + data.error);
       } else {
-        alert("Error al generar la planilla");
+        alert(data.error || "Error al generar la planilla");
       }
     } catch (err) {
       console.error(err);
@@ -121,138 +121,146 @@ export default function DashboardPage() {
     }
   };
 
-  if (authLoading) {
-    return <p className="p-4">Cargando sesión...</p>;
-  }
-
-  if (!isLoggedIn) {
-    return <p className="p-4">Debes iniciar sesión para usar esta página.</p>;
-  }
-
-  if (!month) return null;
+  if (!isLoggedIn)
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-600">
+        Debes iniciar sesión para usar esta página.
+      </div>
+    );
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">
-        Generar planilla de horarios
-      </h1>
-
-      <div className="mb-4">
-        <label className="mr-2 font-semibold">Mes:</label>
-        <input
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="border px-2 py-1 rounded"
-        />
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="table-auto border-collapse border w-full">
-          <thead>
-            <tr>
-              <th className="border px-2 py-1">Fecha</th>
-              <th className="border px-2 py-1">Hora de ingreso</th>
-              <th className="border px-2 py-1">Hora de salida</th>
-              <th className="border px-2 py-1">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {days.map((day, dayIndex) =>
-              day.intervals.map((interval, intervalIndex) => (
-                <tr key={`${day.date}-${intervalIndex}`}>
-                  {intervalIndex === 0 && (
-                    <td
-                      className="border px-2 py-1"
-                      rowSpan={day.intervals.length}
-                    >
-                      {day.date}
-                    </td>
-                  )}
-                  <td className="border px-2 py-1">
-                    <input
-                      type="time"
-                      value={interval.in}
-                      onChange={(e) =>
-                        updateInterval(
-                          dayIndex,
-                          intervalIndex,
-                          "in",
-                          e.target.value
-                        )
-                      }
-                      className="border px-1 py-1 rounded w-full"
-                    />
-                  </td>
-                  <td className="border px-2 py-1">
-                    <input
-                      type="time"
-                      value={interval.out}
-                      onChange={(e) =>
-                        updateInterval(
-                          dayIndex,
-                          intervalIndex,
-                          "out",
-                          e.target.value
-                        )
-                      }
-                      className="border px-1 py-1 rounded w-full"
-                    />
-                  </td>
-                  <td className="border px-2 py-1 flex gap-1">
-                    <button
-                      onClick={() => addInterval(dayIndex)}
-                      className="bg-green-500 text-white px-2 py-1 rounded"
-                    >
-                      +
-                    </button>
-                    {day.intervals.length > 1 && (
-                      <button
-                        onClick={() =>
-                          removeInterval(dayIndex, intervalIndex)
-                        }
-                        className="bg-red-500 text-white px-2 py-1 rounded"
-                      >
-                        -
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-4 flex items-center gap-4">
-        <button
-          onClick={generateSheet}
-          className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-          disabled={loading}
-        >
-          {loading ? "Generando..." : "Generar planilla"}
-        </button>
-
-        {sheetUrl && (
-          <a
-            href={sheetUrl}
-            target="_blank"
-            className="text-blue-700 underline"
-            rel="noreferrer"
+    <div className="min-h-screen bg-gray-50">
+      <header className="sticky top-0 z-10 bg-white border-b shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+          <h1 className="text-xl font-semibold">Horarios · Planilla mensual</h1>
+          <button
+            onClick={logout}
+            className="text-sm text-gray-600 hover:text-red-600"
           >
-            Abrir planilla
-          </a>
-        )}
-      </div>
+            Cerrar sesión
+          </button>
+        </div>
+      </header>
 
-      <div className="mt-6">
-        <button
-          onClick={logout}
-          className="bg-gray-600 text-white px-4 py-2 rounded"
-        >
-          Cerrar sesión
-        </button>
-      </div>
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        <section className="bg-white rounded-xl shadow p-4 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold">Mes de trabajo</h2>
+            <p className="text-sm text-gray-500">Seleccioná el mes a cargar</p>
+          </div>
+          <input
+            type="month"
+            value={month}
+            onChange={e => setMonth(e.target.value)}
+            className="border rounded-lg px-3 py-2"
+          />
+        </section>
+
+        <section className="bg-white rounded-xl shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-3 py-2 text-left">Fecha</th>
+                  <th className="px-3 py-2">Ingreso</th>
+                  <th className="px-3 py-2">Salida</th>
+                  <th className="px-3 py-2 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.map((day, dayIndex) =>
+                  day.intervals.map((interval, intervalIndex) => (
+                    <tr
+                      key={`${day.date}-${intervalIndex}`}
+                      className="border-t hover:bg-gray-50"
+                    >
+                      {intervalIndex === 0 && (
+                        <td
+                          rowSpan={day.intervals.length}
+                          className="px-3 py-2 font-medium whitespace-nowrap"
+                        >
+                          {day.date}
+                        </td>
+                      )}
+                      <td className="px-3 py-2">
+                        <input
+                          type="time"
+                          value={interval.in}
+                          onChange={e =>
+                            updateInterval(
+                              dayIndex,
+                              intervalIndex,
+                              "in",
+                              e.target.value
+                            )
+                          }
+                          className="border rounded px-2 py-1 w-full"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="time"
+                          value={interval.out}
+                          onChange={e =>
+                            updateInterval(
+                              dayIndex,
+                              intervalIndex,
+                              "out",
+                              e.target.value
+                            )
+                          }
+                          className="border rounded px-2 py-1 w-full"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="inline-flex gap-2">
+                          <button
+                            onClick={() => addInterval(dayIndex)}
+                            className="px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200"
+                          >
+                            +
+                          </button>
+                          {day.intervals.length > 1 && (
+                            <button
+                              onClick={() =>
+                                removeInterval(dayIndex, intervalIndex)
+                              }
+                              className="px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                            >
+                              −
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <button
+            onClick={generateSheet}
+            disabled={loading}
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl disabled:opacity-50"
+          >
+            {loading ? "Generando…" : "Generar planilla"}
+          </button>
+
+          {sheetUrl && (
+            <a
+              href={sheetUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-700 underline"
+            >
+              Abrir planilla en Google Sheets
+            </a>
+          )}
+        </section>
+      </main>
     </div>
   );
 }
