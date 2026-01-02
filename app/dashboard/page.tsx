@@ -1,226 +1,188 @@
-"use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext";
+const buildMonth = (year: number, month: number) => {
+  const days = [];
+  const date = new Date(year, month, 1);
 
-type Interval = { in: string; out: string };
-type DayEntry = { date: string; intervals: Interval[] };
+  while (date.getMonth() === month) {
+    days.push({
+      date: date.toISOString().slice(0, 10),
+      intervals: [{ in: "", out: "" }],
+    });
+    date.setDate(date.getDate() + 1);
+  }
+  return days;
+};
 
-function isDayEmpty(day: DayEntry) {
-  return day.intervals.every(i => !i.in && !i.out);
-}
+const isValidInterval = (i: { in: number; out: number; }) =>
+  i.in && i.out && i.in < i.out;
 
-function isDayInvalid(day: DayEntry) {
-  if (isDayEmpty(day)) return false;
+const dayStatus = (day: { date?: string; intervals: any; }) => {
+  const filled = day.intervals.filter((i: { in: any; out: any; }) => i.in || i.out);
+  if (filled.length === 0) return "empty";
+  if (filled.every(isValidInterval)) return "ok";
+  return "error";
+};
 
-  return day.intervals.some(i => {
-    if (!i.in || !i.out) return true;
-    return i.in >= i.out;
-  });
-}
+export default function MonthlyTimesheet() {
+  const [month, setMonth] = useState("2026-01");
+  const [days, setDays] = useState(() => buildMonth(2026, 0));
 
-export default function DashboardPage() {
-  const { tokens, isLoggedIn, logout } = useAuth();
-
-  const today = new Date();
-  const currentMonth = `${today.getFullYear()}-${String(
-    today.getMonth() + 1
-  ).padStart(2, "0")}`;
-
-  const [month, setMonth] = useState(currentMonth);
-  const [days, setDays] = useState<DayEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [sheetUrl, setSheetUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const [y, m] = month.split("-").map(Number);
-    const date = new Date(y, m - 1, 1);
-    const temp: DayEntry[] = [];
-
-    while (date.getMonth() === m - 1) {
-      temp.push({
-        date: date.toISOString().slice(0, 10),
-        intervals: [{ in: "", out: "" }],
-      });
-      date.setDate(date.getDate() + 1);
-    }
-
-    setDays(temp);
+  const monthLabel = useMemo(() => {
+    const d = new Date(`${month}-01`);
+    return d.toLocaleDateString("es-ES", {
+      month: "long",
+      year: "numeric",
+    });
   }, [month]);
 
-  const updateInterval = (
-    d: number,
-    i: number,
-    field: "in" | "out",
-    value: string
-  ) => {
-    const copy = [...days];
-    copy[d].intervals[i][field] = value;
-    setDays(copy);
+  const updateInterval = (dIdx: number, iIdx: number, field: string, value: string) => {
+    setDays(ds =>
+      ds.map((d, di) =>
+        di === dIdx
+          ? {
+              ...d,
+              intervals: d.intervals.map((i, ii) =>
+                ii === iIdx ? { ...i, [field]: value } : i
+              ),
+            }
+          : d
+      )
+    );
   };
 
-  const addInterval = (d: number) => {
-    const copy = [...days];
-    copy[d].intervals.push({ in: "", out: "" });
-    setDays(copy);
+  const addInterval = (dIdx: number) => {
+    setDays(ds =>
+      ds.map((d, i) =>
+        i === dIdx
+          ? { ...d, intervals: [...d.intervals, { in: "", out: "" }] }
+          : d
+      )
+    );
   };
 
-  const removeInterval = (d: number, i: number) => {
-    const copy = [...days];
-    copy[d].intervals.splice(i, 1);
-    setDays(copy);
+  const removeInterval = (dIdx: number, iIdx: number) => {
+    setDays(ds =>
+      ds.map((d, i) =>
+        i === dIdx
+          ? {
+              ...d,
+              intervals: d.intervals.filter((_, ii) => ii !== iIdx),
+            }
+          : d
+      )
+    );
   };
-
-  const generateSheet = async () => {
-    if (!tokens) {
-      logout();
-      return;
-    }
-
-    setLoading(true);
-    setSheetUrl(null);
-
-    try {
-      const res = await fetch("/api/create-sheet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, days, tokens }),
-      });
-
-      if (res.status === 401) {
-        alert("Sesión expirada");
-        logout();
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.url) {
-        setSheetUrl(data.url);
-        alert("Planilla creada correctamente");
-      } else {
-        alert(data.error || "Error al generar planilla");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!isLoggedIn)
-    return <p className="p-6 text-slate-300">Debes iniciar sesión</p>;
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-black via-slate-900 to-black text-slate-100">
-      <header className="flex justify-between items-center px-6 py-4 border-b border-slate-800">
-        <h1 className="font-semibold text-lg">Horarios · Planilla mensual</h1>
-        <button onClick={logout} className="text-sm text-blue-400 hover:underline">
+    <div className="min-h-screen bg-linear-to-br from-black via-slate-900 to-black text-white p-4 md:p-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-lg md:text-xl font-semibold">
+          Horarios · Planilla mensual
+        </h1>
+        <button className="text-sm text-sky-400 hover:underline">
           Cerrar sesión
         </button>
-      </header>
+      </div>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-6">
-        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800">
-          <label className="block text-sm mb-1 text-slate-300">
-            Mes de trabajo
-          </label>
-          <input
-            type="month"
-            value={month}
-            onChange={e => setMonth(e.target.value)}
-            className="bg-slate-800 border border-slate-700 rounded px-3 py-2"
-          />
+      <div className="bg-slate-900/70 rounded-xl p-4 mb-6">
+        <label className="block text-sm text-slate-400 mb-1">
+          Mes de trabajo
+        </label>
+        <input
+          type="month"
+          value={month}
+          onChange={(e) => {
+            setMonth(e.target.value);
+            const d = new Date(`${e.target.value}-01`);
+            setDays(buildMonth(d.getFullYear(), d.getMonth()));
+          }}
+          className="bg-slate-800 border border-slate-700 rounded-md px-3 py-2"
+        />
+        <div className="mt-1 text-sm capitalize text-slate-300">
+          {monthLabel}
         </div>
+      </div>
 
-        <div className="space-y-4">
-          {days.map((day, dIndex) => {
-            const invalid = isDayInvalid(day);
+      <div className="space-y-4">
+        <AnimatePresence>
+          {days.map((day, dIdx) => {
+            const status = dayStatus(day);
 
             return (
-              <div
+              <motion.div
                 key={day.date}
-                className={`rounded-xl p-4 border transition
-                  ${
-                    invalid
-                      ? "border-red-600 bg-red-950/30"
-                      : "border-slate-800 bg-slate-900"
-                  }`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+                className={`rounded-xl border p-4 ${
+                  status === "error"
+                    ? "border-red-600 bg-red-950/40"
+                    : "border-slate-800 bg-slate-900/60"
+                }`}
               >
                 <div className="font-medium mb-3">{day.date}</div>
 
-                <div className="space-y-2">
-                  {day.intervals.map((interval, i) => (
-                    <div
-                      key={i}
-                      className="flex flex-col sm:flex-row gap-2 items-center w-full"
+                <AnimatePresence>
+                  {day.intervals.map((interval, iIdx) => (
+                    <motion.div
+                      key={iIdx}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden mb-3"
                     >
-                      <input
-                        type="time"
-                        value={interval.in}
-                        onChange={e =>
-                          updateInterval(dIndex, i, "in", e.target.value)
-                        }
-                        className="bg-slate-800 border border-slate-700 rounded px-3 py-2 w-full sm:max-w-[180px] md:max-w-none flex-1"
-                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                        <input
+                          type="time"
+                          value={interval.in}
+                          onChange={(e) =>
+                            updateInterval(dIdx, iIdx, "in", e.target.value)
+                          }
+                          className="w-full text-base md:text-lg bg-slate-800 border border-slate-700 rounded-md px-3 py-2"
+                        />
+                        <input
+                          type="time"
+                          value={interval.out}
+                          onChange={(e) =>
+                            updateInterval(dIdx, iIdx, "out", e.target.value)
+                          }
+                          className="w-full text-base md:text-lg bg-slate-800 border border-slate-700 rounded-md px-3 py-2"
+                        />
 
-                      <input
-                        type="time"
-                        value={interval.out}
-                        onChange={e =>
-                          updateInterval(dIndex, i, "out", e.target.value)
-                        }
-                        className="bg-slate-800 border border-slate-700 rounded px-3 py-2 w-full sm:max-w-[180px] md:max-w-none flex-1"
-                      />
-
-                      {day.intervals.length > 1 && (
                         <button
-                          onClick={() => removeInterval(dIndex, i)}
-                          className="bg-red-600 text-white px-2 py-2 rounded"
+                          onClick={() => removeInterval(dIdx, iIdx)}
+                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md"
                         >
                           −
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    </motion.div>
                   ))}
-                </div>
-
-                {invalid && (
-                  <p className="text-red-400 text-sm mt-2">
-                    ⚠ Día incompleto o con horarios inválidos
-                  </p>
-                )}
+                </AnimatePresence>
 
                 <button
-                  onClick={() => addInterval(dIndex)}
-                  className="mt-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-3 py-1 rounded"
+                  onClick={() => addInterval(dIdx)}
+                  className="mt-1 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-sm"
                 >
                   +
+                  <span>Agregar horario</span>
                 </button>
-              </div>
+
+                {status === "error" && (
+                  <div className="mt-2 text-sm text-red-400">
+                    ⚠ Día incompleto o con horarios inválidos
+                  </div>
+                )}
+              </motion.div>
             );
           })}
-        </div>
-
-        <div className="pt-4 flex flex-col sm:flex-row gap-4 items-center">
-          <button
-            onClick={generateSheet}
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-6 py-2 rounded"
-          >
-            {loading ? "Generando..." : "Generar planilla"}
-          </button>
-
-          {sheetUrl && (
-            <a
-              href={sheetUrl}
-              target="_blank"
-              className="text-blue-400 underline"
-              rel="noreferrer"
-            >
-              Abrir planilla
-            </a>
-          )}
-        </div>
-      </main>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
