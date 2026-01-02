@@ -18,11 +18,25 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // ⬇️ Inicialización correcta SIN useEffect
   const [tokens, setTokens] = useState<any | null>(() => {
-    if (typeof window === "undefined") return null; // SSR-safe
+    if (typeof window === "undefined") return null;
+
     const stored = localStorage.getItem("googleTokens");
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+
+    try {
+      const parsed = JSON.parse(stored);
+
+      if (!parsed?.access_token) {
+        localStorage.removeItem("googleTokens");
+        return null;
+      }
+
+      return parsed;
+    } catch {
+      localStorage.removeItem("googleTokens");
+      return null;
+    }
   });
 
   const loginWithGoogle = () => {
@@ -32,12 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     localStorage.removeItem("googleTokens");
     setTokens(null);
+    window.location.href = "/";
   };
 
   const isLoggedIn = !!tokens;
 
   return (
-    <AuthContext.Provider value={{ tokens, isLoggedIn, loginWithGoogle, logout }}>
+    <AuthContext.Provider
+      value={{ tokens, isLoggedIn, loginWithGoogle, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

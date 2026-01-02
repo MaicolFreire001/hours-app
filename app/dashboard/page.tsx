@@ -32,7 +32,10 @@ export default function DashboardPage() {
       const mm = (date.getMonth() + 1).toString().padStart(2, "0");
       const dd = date.getDate().toString().padStart(2, "0");
 
-      tempDays.push({ date: `${yyyy}-${mm}-${dd}`, intervals: [{ in: "", out: "" }] });
+      tempDays.push({
+        date: `${yyyy}-${mm}-${dd}`,
+        intervals: [{ in: "", out: "" }],
+      });
 
       date.setDate(date.getDate() + 1);
     }
@@ -52,49 +55,68 @@ export default function DashboardPage() {
     setDays(copy);
   };
 
-  const updateInterval = (dayIndex: number, intervalIndex: number, field: "in" | "out", value: string) => {
+  const updateInterval = (
+    dayIndex: number,
+    intervalIndex: number,
+    field: "in" | "out",
+    value: string
+  ) => {
     const copy = [...days];
     copy[dayIndex].intervals[intervalIndex][field] = value;
     setDays(copy);
   };
 
+  // 🔴 ACÁ ESTÁ EL CAMBIO IMPORTANTE
   const generateSheet = async () => {
-    if (!tokens) return alert("Debes iniciar sesión");
+    if (!tokens) {
+      alert("Debes iniciar sesión");
+      logout();
+      return;
+    }
 
     setLoading(true);
     setSheetUrl(null);
 
     try {
-        const res = await fetch("/api/create-sheet", {
+      const res = await fetch("/api/create-sheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ month, days, tokens }),
-        });
+      });
 
-        const data = await res.json();
+      // 🔐 sesión expirada
+      if (res.status === 401) {
+        alert("Tu sesión expiró. Iniciá sesión nuevamente.");
+        logout();
+        return;
+      }
 
-        if (data.url) {
+      const data = await res.json();
+
+      if (data.url) {
         setSheetUrl(data.url);
         alert("Planilla creada correctamente!");
-        } else if (data.error) {
+      } else if (data.error) {
         alert("Error: " + data.error);
-        } else {
+      } else {
         alert("Error al generar la planilla");
-        }
+      }
     } catch (err) {
-        console.error(err);
-        alert("Error de red");
+      console.error(err);
+      alert("Error de red");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
-
-  if (!isLoggedIn) return <p className="p-4">Debes iniciar sesión para usar esta página.</p>;
+  if (!isLoggedIn)
+    return <p className="p-4">Debes iniciar sesión para usar esta página.</p>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Generar planilla de horarios</h1>
+      <h1 className="text-2xl font-bold mb-4">
+        Generar planilla de horarios
+      </h1>
 
       <div className="mb-4">
         <label className="mr-2 font-semibold">Mes:</label>
@@ -121,7 +143,10 @@ export default function DashboardPage() {
               day.intervals.map((interval, intervalIndex) => (
                 <tr key={`${day.date}-${intervalIndex}`}>
                   {intervalIndex === 0 && (
-                    <td className="border px-2 py-1" rowSpan={day.intervals.length}>
+                    <td
+                      className="border px-2 py-1"
+                      rowSpan={day.intervals.length}
+                    >
                       {day.date}
                     </td>
                   )}
@@ -129,7 +154,14 @@ export default function DashboardPage() {
                     <input
                       type="time"
                       value={interval.in}
-                      onChange={(e) => updateInterval(dayIndex, intervalIndex, "in", e.target.value)}
+                      onChange={(e) =>
+                        updateInterval(
+                          dayIndex,
+                          intervalIndex,
+                          "in",
+                          e.target.value
+                        )
+                      }
                       className="border px-1 py-1 rounded w-full"
                     />
                   </td>
@@ -137,7 +169,14 @@ export default function DashboardPage() {
                     <input
                       type="time"
                       value={interval.out}
-                      onChange={(e) => updateInterval(dayIndex, intervalIndex, "out", e.target.value)}
+                      onChange={(e) =>
+                        updateInterval(
+                          dayIndex,
+                          intervalIndex,
+                          "out",
+                          e.target.value
+                        )
+                      }
                       className="border px-1 py-1 rounded w-full"
                     />
                   </td>
@@ -150,7 +189,9 @@ export default function DashboardPage() {
                     </button>
                     {day.intervals.length > 1 && (
                       <button
-                        onClick={() => removeInterval(dayIndex, intervalIndex)}
+                        onClick={() =>
+                          removeInterval(dayIndex, intervalIndex)
+                        }
                         className="bg-red-500 text-white px-2 py-1 rounded"
                       >
                         -
@@ -172,6 +213,7 @@ export default function DashboardPage() {
         >
           {loading ? "Generando..." : "Generar planilla"}
         </button>
+
         {sheetUrl && (
           <a
             href={sheetUrl}

@@ -96,6 +96,20 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("ERROR create-sheet:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+
+    if (
+      error?.message?.includes("invalid_grant") ||
+      error?.code === 400
+    ) {
+      return NextResponse.json(
+        { error: "Session expired" },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
