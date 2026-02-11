@@ -33,6 +33,7 @@ export async function POST(req: Request) {
 
     const sheetTitle = `Horas - ${month}`;
 
+    // 🟢 Crear Spreadsheet
     const fileRes = await drive.files.create({
       requestBody: {
         name: sheetTitle,
@@ -42,40 +43,36 @@ export async function POST(req: Request) {
     });
 
     const spreadsheetId = fileRes.data.id!;
-    if (!spreadsheetId) {
-      throw new Error("No spreadsheetId returned");
-    }
+    const sheetName = "Sheet1";
 
-    const spreadsheet = await sheets.spreadsheets.get({
-      spreadsheetId,
-    });
-
-    const sheetName =
-      spreadsheet.data.sheets?.[0]?.properties?.title;
-
-    if (!sheetName) {
-      throw new Error("Unable to detect sheet name");
-    }
-
+    // 🧮 Contenido
     const values: (string | number)[][] = [];
     values.push(["Fecha", "Hora ingreso", "Hora salida", "Horas trabajadas"]);
 
     let rowIndex = 2;
 
     days.forEach((day) => {
-      day.intervals.forEach((int) => {
+      day.intervals.forEach((interval) => {
         values.push([
           day.date,
-          int.in,
-          int.out,
-          `=IF(AND(B${rowIndex}<>"",C${rowIndex}<>""),(C${rowIndex}-B${rowIndex}),"")`,
+          interval.in,
+          interval.out,
+          // ✅ Fórmula en español
+          `=SI(Y(B${rowIndex}<>"";C${rowIndex}<>"" );C${rowIndex}-B${rowIndex};"")`,
         ]);
         rowIndex++;
       });
     });
 
-    values.push(["", "", "TOTAL:", `=SUM(D2:D${rowIndex - 1})`]);
+    // 🔢 Total
+    values.push([
+      "",
+      "",
+      "TOTAL:",
+      `=SUMA(D2:D${rowIndex - 1})`,
+    ]);
 
+    // 📤 Escribir valores
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: `${sheetName}!A1:D${rowIndex}`,
@@ -94,6 +91,7 @@ export async function POST(req: Request) {
     return NextResponse.json(result);
 
   } catch (error: any) {
+    // 🔁 Refresh token
     if (
       error?.code === 401 ||
       error?.message?.includes("invalid_grant")
@@ -108,7 +106,6 @@ export async function POST(req: Request) {
           ...result,
           newTokens: credentials,
         });
-
       } catch {
         return NextResponse.json(
           { needLogin: true },
