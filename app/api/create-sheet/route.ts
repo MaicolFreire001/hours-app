@@ -33,7 +33,6 @@ export async function POST(req: Request) {
 
     const sheetTitle = `Horas - ${month}`;
 
-    // 🟢 Crear Spreadsheet
     const fileRes = await drive.files.create({
       requestBody: {
         name: sheetTitle,
@@ -43,9 +42,8 @@ export async function POST(req: Request) {
     });
 
     const spreadsheetId = fileRes.data.id!;
-    const sheetName = "Sheet1";
 
-    // 🧮 Contenido
+    // 🧮 Datos
     const values: (string | number)[][] = [];
     values.push(["Fecha", "Hora ingreso", "Hora salida", "Horas trabajadas"]);
 
@@ -57,14 +55,12 @@ export async function POST(req: Request) {
           day.date,
           interval.in,
           interval.out,
-          // ✅ Fórmula en español
           `=SI(Y(B${rowIndex}<>"";C${rowIndex}<>"" );C${rowIndex}-B${rowIndex};"")`,
         ]);
         rowIndex++;
       });
     });
 
-    // 🔢 Total
     values.push([
       "",
       "",
@@ -72,10 +68,9 @@ export async function POST(req: Request) {
       `=SUMA(D2:D${rowIndex - 1})`,
     ]);
 
-    // 📤 Escribir valores
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `${sheetName}!A1:D${rowIndex}`,
+      range: "A1",
       valueInputOption: "USER_ENTERED",
       requestBody: { values },
     });
@@ -91,7 +86,6 @@ export async function POST(req: Request) {
     return NextResponse.json(result);
 
   } catch (error: any) {
-    // 🔁 Refresh token
     if (
       error?.code === 401 ||
       error?.message?.includes("invalid_grant")
