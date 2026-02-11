@@ -42,7 +42,20 @@ export async function POST(req: Request) {
     });
 
     const spreadsheetId = fileRes.data.id!;
-    const sheetName = "Sheet1";
+    if (!spreadsheetId) {
+      throw new Error("No spreadsheetId returned");
+    }
+
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId,
+    });
+
+    const sheetName =
+      spreadsheet.data.sheets?.[0]?.properties?.title;
+
+    if (!sheetName) {
+      throw new Error("Unable to detect sheet name");
+    }
 
     const values: (string | number)[][] = [];
     values.push(["Fecha", "Hora ingreso", "Hora salida", "Horas trabajadas"]);
@@ -78,7 +91,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await run();
-    return NextResponse.json({ ...result });
+    return NextResponse.json(result);
 
   } catch (error: any) {
     if (
@@ -93,7 +106,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json({
           ...result,
-          newTokens: credentials, // 🔑 tokens nuevos
+          newTokens: credentials,
         });
 
       } catch {
